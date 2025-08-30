@@ -4,6 +4,7 @@ import notebookTemolate from './assets/notebookTemplate.njk';
 import WereadPlugin from '../main';
 
 interface WereadPluginSettings {
+	loginMethod: string;
 	cookies: Cookie[];
 	noteLocation: string;
 	dailyNotesLocation: string;
@@ -26,9 +27,15 @@ interface WereadPluginSettings {
 	convertTags: boolean;
 	saveArticleToggle: boolean;
 	saveReadingInfoToggle: boolean;
+	cookieCloudInfo: {
+		serverUrl: string;
+		uuid: string;
+		password: string;
+	};
 }
 
 const DEFAULT_SETTINGS: WereadPluginSettings = {
+	loginMethod: 'scan',
 	cookies: [],
 	noteLocation: '/',
 	dailyNotesLocation: '/',
@@ -50,7 +57,12 @@ const DEFAULT_SETTINGS: WereadPluginSettings = {
 	showEmptyChapterTitleToggle: false,
 	convertTags: false,
 	saveArticleToggle: true,
-	saveReadingInfoToggle: true
+	saveReadingInfoToggle: true,
+	cookieCloudInfo: {
+		serverUrl: '',
+		uuid: '',
+		password: ''
+	}
 };
 
 const createSettingsStore = () => {
@@ -83,6 +95,13 @@ const createSettingsStore = () => {
 			await _plugin.saveData(data);
 		}
 	});
+
+	const setLoginMethod = (method: string) => {
+		store.update((settings) => {
+			settings.loginMethod = method;
+			return settings;
+		});
+	};
 
 	const clearCookies = () => {
 		console.log('[weread plugin] cookie已失效，清理cookie...');
@@ -245,10 +264,19 @@ const createSettingsStore = () => {
 			return state;
 		});
 	};
+
+	const setCookieCloudInfo = (info: { serverUrl: string; uuid: string; password: string }) => {
+		store.update((state) => {
+			state.cookieCloudInfo = info;
+			return state;
+		});
+	};
+
 	return {
 		subscribe: store.subscribe,
 		initialise,
 		actions: {
+			setLoginMethod,
 			setNoteLocationFolder,
 			setCookies,
 			clearCookies,
@@ -267,7 +295,8 @@ const createSettingsStore = () => {
 			setEmptyChapterTitleToggle,
 			setConvertTags,
 			setSaveArticleToggle,
-			setSaveReadingInfoToggle
+			setSaveReadingInfoToggle,
+			setCookieCloudInfo
 		}
 	};
 };

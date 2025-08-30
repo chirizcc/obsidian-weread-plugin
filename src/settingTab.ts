@@ -5,6 +5,7 @@ import { settingsStore } from './settings';
 import { get } from 'svelte/store';
 import WereadLoginModel from './components/wereadLoginModel';
 import WereadLogoutModel from './components/wereadLogoutModel';
+import CookieCloudConfigModal from './components/cookieCloudConfigModel';
 
 import pickBy from 'lodash.pickby';
 import { Renderer } from './renderer';
@@ -25,19 +26,28 @@ export class WereadSettingsTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 		containerEl.createEl('h2', { text: '设置微信读书插件' });
+
+		this.showLoginMethod();
+
 		const isCookieValid = get(settingsStore).isCookieValid;
-		if (Platform.isDesktopApp) {
-			if (isCookieValid) {
-				this.showLogout();
+		const loginMethod = get(settingsStore).loginMethod;
+
+		if (loginMethod === 'scan') {
+			if (Platform.isDesktopApp) {
+				if (isCookieValid) {
+					this.showLogout();
+				} else {
+					this.showLogin();
+				}
 			} else {
-				this.showLogin();
+				if (isCookieValid) {
+					this.showMobileLogout();
+				} else {
+					this.showMobileLogin();
+				}
 			}
 		} else {
-			if (isCookieValid) {
-				this.showMobileLogout();
-			} else {
-				this.showMobileLogin();
-			}
+			this.showCookieCloudInfo();
 		}
 
 		this.notebookFolder();
@@ -400,5 +410,37 @@ export class WereadSettingsTab extends PluginSettingTab {
 						this.display();
 					});
 			});
+	}
+
+	private showLoginMethod(): void {
+		new Setting(this.containerEl).setName('登录方式').addDropdown((dropdown) => {
+			dropdown.addOptions({
+				scan: '扫码登录',
+				cookieCloud: 'CookieCloud登录'
+			});
+			return dropdown.setValue(get(settingsStore).loginMethod).onChange(async (value) => {
+				console.debug('set login method to', value);
+				settingsStore.actions.setLoginMethod(value);
+				settingsStore.actions.clearCookies();
+				this.display();
+			});
+		});
+	}
+
+	private showCookieCloudInfo(): void {
+		const isCookieValid = get(settingsStore).isCookieValid;
+		let name = '配置 CookieCloud';
+		if (isCookieValid) {
+			name = `微信读书已登录，用户名：  ${get(settingsStore).user}`;
+		}
+
+		new Setting(this.containerEl).setName(name).addButton((button) => {
+			return button.setIcon('settings-2').onClick(async () => {
+				button.setDisabled(true);
+				const configModel = new CookieCloudConfigModal(this.app, this);
+				configModel.open();
+				this.display();
+			});
+		});
 	}
 }

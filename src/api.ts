@@ -11,6 +11,7 @@ import {
 	BookDetailResponse,
 	BookProgressResponse
 } from './models';
+import CookieCloudManager from './cookieCloud';
 export default class ApiManager {
 	readonly baseUrl: string = 'https://weread.qq.com';
 
@@ -34,11 +35,21 @@ export default class ApiManager {
 		};
 		const resp = await requestUrl(req);
 		const respCookie: string = resp.headers['set-cookie'] || resp.headers['Set-Cookie'];
-		if (respCookie === undefined) {
-			new Notice('尝试刷新Cookie失败');
-		} else {
+
+		if (respCookie !== undefined && this.checkCookies(respCookie)) {
 			new Notice('cookie已过期，尝试刷新Cookie成功');
 			this.updateCookies(respCookie);
+		} else {
+			const loginMethod = get(settingsStore).loginMethod;
+			if (loginMethod === 'cookieCloud') {
+				const cookieCloudManager = new CookieCloudManager();
+				const isSuccess = await cookieCloudManager.getCookie();
+				if (!isSuccess) {
+					new Notice('尝试刷新Cookie失败');
+				}
+			} else {
+				new Notice('尝试刷新Cookie失败');
+			}
 		}
 	}
 
@@ -89,6 +100,13 @@ export default class ApiManager {
 					await this.refreshCookie();
 				}
 			}
+
+			// CookieCloud 请求到的 cookie 时间过长时，需要获取 set-cookie 更新 wr_skey，否则请求 /web 的接口会返回登录超时
+			const respCookie: string = resp.headers['set-cookie'] || resp.headers['Set-Cookie'];
+			if (respCookie !== undefined) {
+				this.updateCookies(respCookie);
+			}
+
 			noteBooks = resp.json.books;
 		} catch (e) {
 			if (e.status == 401) {
@@ -245,6 +263,19 @@ export default class ApiManager {
 			);
 			console.error('get book read info error' + bookId, e);
 		}
+	}
+
+	private checkCookies(respCookie: string): boolean {
+		let refreshCookies: Cookie[];
+		if (Array.isArray(respCookie)) {
+			refreshCookies = parse(respCookie);
+		} else {
+			const arrCookies = splitCookiesString(respCookie);
+			refreshCookies = parse(arrCookies);
+		}
+
+		const wrName = refreshCookies.find((cookie) => cookie.name == 'wr_name');
+		return wrName !== undefined && wrName.value !== '';
 	}
 
 	private updateCookies(respCookie: string) {
